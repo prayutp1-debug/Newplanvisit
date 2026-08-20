@@ -1061,6 +1061,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
           <button class="subtab-btn active" data-subtab="bytopic">แยกตามเรื่อง</button>
           <button class="subtab-btn" data-subtab="bydivision">แยกกิจการ</button>
           <button class="subtab-btn" data-subtab="bygrade">แยกตามเกรด</button>
+          <button class="subtab-btn" data-subtab="byscatter">แยกเรื่องเทียบคะแนนรวม</button>
         </div>
         <div class="subtab-content">
           <div class="subtab-view active" id="subtab-bytopic">
@@ -1076,6 +1077,11 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
           <div class="subtab-view" id="subtab-bygrade">
             <div class="panel-sub" style="margin-bottom:10px;">คะแนนเฉลี่ยแต่ละหัวข้อ เทียบตามเกรด (ตารางแรก = ทุกกิจการรวมกัน ตารางถัดไป = แยกตามกิจการ)</div>
             <div id="grid-bygrade" class="gradetable-list"></div>
+          </div>
+
+          <div class="subtab-view" id="subtab-byscatter">
+            <div class="panel-sub" style="margin-bottom:10px;">ความสัมพันธ์ระหว่างคะแนนแต่ละหัวข้อ (แกน X) กับคะแนนรวม (แกน Y) ของแต่ละโรงงาน — เขียว = ผ่านมาตรฐานหัวข้อนั้น, แดง = ต่ำกว่ามาตรฐาน</div>
+            <div class="minigrid" id="grid-byscatter"></div>
           </div>
         </div>
       </div>
@@ -1466,6 +1472,7 @@ function renderOverview(){
 
   try{ renderByTopicGrid(visited); }catch(e){ console.error('by-topic grid error', e); }
   try{ renderByDivisionGrid(visited); }catch(e){ console.error('by-division grid error', e); }
+  try{ renderByScatterGrid(visited); }catch(e){ console.error('by-scatter grid error', e); }
   try{ renderScoreBandTable(visited); }catch(e){ console.error('scoreband table error', e); }
   try{ renderGradeTables(visited); }catch(e){ console.error('grade tables error', e); }
 }
@@ -1714,6 +1721,64 @@ function renderByDivisionGrid(visitedPlants){
   });
 }
 
+/* ---- "แยกเรื่องเทียบคะแนนรวม" grid: one scatter chart per topic, X=topic score, Y=total score ---- */
+let byScatterCharts = [];
+function renderByScatterGrid(visitedPlants){
+  const host = document.getElementById('grid-byscatter');
+  if(!host) return;
+  byScatterCharts.forEach(c=>c.destroy());
+  byScatterCharts = [];
+  if(typeof Chart === 'undefined') return;
+  const topics = DATA.topics;
+  if(!visitedPlants.length){ host.innerHTML = `<div class="empty-state"><div class="big">📊</div>ไม่มีข้อมูลตามเงื่อนไขที่เลือก</div>`; return; }
+  host.innerHTML = topics.map((t,i)=>`
+    <div class="minigrid-card">
+      <div style="display:flex; justify-content:center; margin-bottom:6px;">
+        <span class="topic-badge">${esc(t)}</span>
+      </div>
+      <div class="mini-chart-box"><canvas id="byscatter-${i}"></canvas></div>
+    </div>
+  `).join('');
+
+  const Y_CUT = 80;
+  topics.forEach((t,i)=>{
+    const std = DATA.standard[t];
+    const max = DATA.max_score[t];
+    const xMax = Math.max(max || 0, std || 0);
+    const points = visitedPlants
+      .filter(p=>p.scores[t]!=null && p.total!=null)
+      .map(p=>({ x:p.scores[t], y:p.total, plant:p.plant_name, division:p.division }));
+    const passPts = points.filter(p=> std==null || p.x >= std);
+    const failPts = points.filter(p=> std!=null && p.x < std);
+    const stdLine = (std!=null) ? [{x:std, y:0}, {x:std, y:100}] : [];
+    const cutLine = [{x:0, y:Y_CUT}, {x:xMax, y:Y_CUT}];
+    const chart = new Chart(document.getElementById('byscatter-'+i), {
+      data:{ datasets:[
+        {type:'scatter', label:'ผ่านมาตรฐาน', data:passPts, backgroundColor:'rgba(24,154,107,.75)', pointRadius:4, pointHoverRadius:6, order:3},
+        {type:'scatter', label:'ต่ำกว่ามาตรฐาน', data:failPts, backgroundColor:'rgba(224,72,62,.75)', pointRadius:4, pointHoverRadius:6, order:3},
+        {type:'line', label:'มาตรฐาน ('+t+')', data:stdLine, borderColor:'#2f6fed', borderDash:[6,4], borderWidth:1.5,
+         pointRadius:0, showLine:true, order:1, datalabels:{display:false}},
+        {type:'line', label:'เกณฑ์คะแนนรวม 80', data:cutLine, borderColor:'#e0a11a', borderDash:[6,4], borderWidth:1.5,
+         pointRadius:0, showLine:true, order:2, datalabels:{display:false}},
+      ]},
+      options:{ responsive:true, maintainAspectRatio:false,
+        plugins:{
+          legend:{position:'bottom', labels:{boxWidth:10, font:{size:8.5}, filter:li=>li.datasetIndex<2}},
+          datalabels:{display:false},
+          tooltip:{filter:c=>c.datasetIndex<2, callbacks:{label:c=>{
+            const d = c.raw;
+            return `${d.plant} (${d.division}): ${t}=${d.x.toFixed(1)}, รวม=${d.y.toFixed(1)}`;
+          }}}
+        },
+        scales:{
+          x:{ title:{display:true, text:t+' (คะแนน)', font:{size:9.5}}, min:0, max:xMax, grid:{color:'#f0f1f4'}, ticks:{font:{size:9}} },
+          y:{ title:{display:true, text:'คะแนนรวม', font:{size:9.5}}, min:0, max:100, grid:{color:'#f0f1f4'}, ticks:{font:{size:9}} }
+        }
+      }
+    });
+    byScatterCharts.push(chart);
+  });
+}
 
 /* ---- Score-band pivot table: rows = score bands, columns = divisions ---- */
 function renderScoreBandTable(visitedPlants){
@@ -2653,7 +2718,7 @@ function jsonpRequest(params){
       delete window[cbName];
       if(script.parentNode) script.parentNode.removeChild(script);
     };
-    const timer = setTimeout(()=>{ cleanup(); reject(new Error('timeout')); }, 15000);
+    const timer = setTimeout(()=>{ cleanup(); reject(new Error('timeout')); }, 30000);
     window[cbName] = (data)=>{ cleanup(); resolve(data); };
     const qs = Object.keys(params).map(k=>encodeURIComponent(k)+'='+encodeURIComponent(params[k])).join('&');
     const script = document.createElement('script');
@@ -2663,7 +2728,12 @@ function jsonpRequest(params){
   });
 }
 async function apiCall(action, payload){
-  return jsonpRequest({ action, ...payload });
+  try{
+    return await jsonpRequest({ action, ...payload });
+  }catch(err){
+    console.warn('First attempt to Auth API failed, retrying once...', err.message);
+    return await jsonpRequest({ action, ...payload });
+  }
 }
 async function apiLogin(username, password){
   return apiCall('login', { username, password });
