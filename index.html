@@ -715,7 +715,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
   .legend-note{font-size:11px; color:var(--ink-soft); display:flex; align-items:center; gap:14px; margin-top:8px;}
   .legend-note i{display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:5px; vertical-align:-1px;}
 
-  .comment-toolbar{display:grid; grid-template-columns:1.4fr 1fr 1fr 1fr auto; gap:12px; align-items:end;}
+  .comment-toolbar{display:grid; grid-template-columns:1fr 1.4fr 1fr 1fr 1fr auto; gap:12px; align-items:end;}
   .comment-count-row{display:flex; gap:10px; margin:14px 0 4px;}
   .pill{background:#f6f7fa; border:1px solid var(--line); border-radius:20px; padding:6px 13px; font-size:11.8px; font-weight:600; color:var(--ink-soft);}
   .pill b{color:var(--ink); font-weight:800;}
@@ -732,6 +732,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
   .comment-item:last-child{border-bottom:none;}
   .comment-item:hover{background:#fafbfd;}
   .ci-body p{margin:0; font-size:12.8px; line-height:1.55; color:#2b3444;}
+  .ci-body p.ci-empty{color:#a3aab8; font-style:italic;}
   .comment-card{border:1px solid var(--line); border-radius:12px; padding:14px 16px; background:#fff; display:grid; grid-template-columns:210px 1fr; gap:16px; align-items:start; transition:.15s;}
   .comment-card:hover{border-color:#d8dce4; box-shadow:0 4px 14px -8px rgba(20,25,35,.18);}
   .cc-meta b{display:block; font-size:13px; font-weight:700;}
@@ -1204,6 +1205,10 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
       </div>
       <div class="comment-toolbar">
         <div class="f-field">
+          <label>รอบการตรวจ</label>
+          <select id="f-round-comment"></select>
+        </div>
+        <div class="f-field">
           <label>ค้นหา (โรงงาน / ข้อความ)</label>
           <input type="search" id="c-search" placeholder="พิมพ์คำค้นหา...">
         </div>
@@ -1347,6 +1352,7 @@ document.querySelectorAll('.subtab-btn').forEach(btn=>{
    ============================================================ */
 const fRound = document.getElementById('f-round');
 const fRoundDetail = document.getElementById('f-round-detail');
+const fRoundComment = document.getElementById('f-round-comment');
 const MONTH_ABBR = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
 
 function pickDefaultRound(rounds){
@@ -1368,11 +1374,15 @@ function setupRoundSelect(){
     fRoundDetail.innerHTML = optionsHTML;
     fRoundDetail.value = def;
   }
+  if(fRoundComment){
+    fRoundComment.innerHTML = optionsHTML;
+    fRoundComment.value = def;
+  }
 }
 
 function syncRoundSelectors(sourceEl){
   const val = sourceEl.value;
-  [fRound, fRoundDetail].forEach(el=>{ if(el && el!==sourceEl) el.value = val; });
+  [fRound, fRoundDetail, fRoundComment].forEach(el=>{ if(el && el!==sourceEl) el.value = val; });
 }
 
 function plantsInRound(){
@@ -2089,6 +2099,7 @@ function handleRoundChange(sourceEl){
 }
 fRound.addEventListener('change', ()=>handleRoundChange(fRound));
 if(fRoundDetail) fRoundDetail.addEventListener('change', ()=>handleRoundChange(fRoundDetail));
+if(fRoundComment) fRoundComment.addEventListener('change', ()=>handleRoundChange(fRoundComment));
 fGradeOv.addEventListener('change', renderOverview);
 [fDivision,fOwner,fPjk,fGrade,fType].forEach(el=>el.addEventListener('change', renderSection2));
 document.getElementById('dash-reset').addEventListener('click', ()=>{
@@ -2193,7 +2204,7 @@ function renderComments(){
           <div class="comment-item">
             <span class="tag tag-topic">${esc(c.maintopic)}</span>
             <div class="ci-body">
-              <p>${esc(c.remark)}</p>
+              <p class="${c.remark==='ไม่มี Comment' ? 'ci-empty' : ''}">${esc(c.remark)}</p>
               <div class="cc-foot">
                 <span>👤 ${esc(c.user_name||'-')}</span>
                 <span>🧑‍💼 ผจก. ${esc(g.meta.pjk||'-')}</span>
@@ -2277,13 +2288,15 @@ function parseWorkbookToData(wb){
     for(let i=1;i<rowsD.length;i++){
       const r = rowsD[i];
       if(!r || r.length<23) continue;
-      const plant_no = r[8], remark = r[15];
-      if(!plant_no || !remark || !String(remark).trim()) continue;
+      const plant_no = r[8];
+      if(!plant_no) continue;
+      const maintopicRaw = r[11];
+      if(!maintopicRaw) continue;
+      const remark = r[15];
       const pn = String(plant_no).trim();
       const m = masterByFc[pn];
-      const maintopicRaw = r[11];
       const maintopic = SHORT_LABEL_MAP[maintopicRaw] || maintopicRaw;
-      const remarkTrim = String(remark).trim();
+      const remarkTrim = (remark!=null && String(remark).trim()) ? String(remark).trim() : '';
       let dateStr = null;
       if(r[10]){
         const s = String(r[10]);
@@ -2302,15 +2315,21 @@ function parseWorkbookToData(wb){
     Object.keys(grouped).forEach(key=>{
       const [pn, maintopic] = key.split('|');
       const items = grouped[key];
-      const uniqByText = {};
-      items.forEach(it=>{ uniqByText[it.remark] = it; });
-      const uniqItems = Object.values(uniqByText);
-      const best = uniqItems.reduce((a,b)=> b.remark.length > a.remark.length ? b : a);
+      const nonEmpty = items.filter(it=>it.remark);
+      let best;
+      if(nonEmpty.length){
+        const uniqByText = {};
+        nonEmpty.forEach(it=>{ uniqByText[it.remark] = it; });
+        const uniqItems = Object.values(uniqByText);
+        best = uniqItems.reduce((a,b)=> b.remark.length > a.remark.length ? b : a);
+      } else {
+        best = items[0];
+      }
       const meta = metaCache[pn];
       comments.push({
         plant_no: pn, plant_name: meta.plant_name, owner: meta.owner,
         division: meta.division, pjk: meta.pjk, round: meta.round,
-        maintopic, remark: best.remark, user_name: best.user_name, date: best.date,
+        maintopic, remark: (best.remark || 'ไม่มี Comment'), user_name: best.user_name, date: best.date,
       });
     });
   }
