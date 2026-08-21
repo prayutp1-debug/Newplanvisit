@@ -2153,7 +2153,7 @@ function renderComments(){
   const dv = cDivision.value, pj = cPjk.value, ow = cOwner.value;
   const activeRound = fRound.value;
   let list = DATA.comments.filter(c=>{
-    if(activeRound && c.round && c.round !== activeRound) return false;
+    if(activeRound && c.round !== activeRound) return false;
     if(dv && cleanDiv(c.division) !== dv) return false;
     if(pj && c.pjk !== pj) return false;
     if(ow && c.owner !== ow) return false;
@@ -2651,7 +2651,7 @@ async function generatePDF(round, division, owner){
   doc.setFont('NotoSansThai','bold'); doc.setFontSize(12);
   doc.text('4) Comment ของโรงงานในสังกัด', marginX, y); y += 6;
   const scopeFcSet = new Set(scopePlants.map(p=>p.fcplno));
-  const scopeComments = DATA.comments.filter(c=> scopeFcSet.has(c.plant_no) && (!c.round || c.round===round));
+  const scopeComments = DATA.comments.filter(c=> scopeFcSet.has(c.plant_no) && c.round===round);
   if(!scopeComments.length){
     doc.setFont('NotoSansThai','normal'); doc.setFontSize(10);
     doc.text('ไม่มี Comment ในเงื่อนไขนี้', marginX, y+16);
