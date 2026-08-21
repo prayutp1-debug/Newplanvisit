@@ -2278,6 +2278,32 @@ function parseWorkbookToData(wb){
   const rounds = Array.from(new Set(plants.map(p=>p.round).filter(Boolean))).sort();
   const masterByFc = {}; plants.forEach(p=>masterByFc[p.fcplno]=p);
 
+  // NOTE: a plant can appear once per round in the ACT sheet (e.g. 4 rows for
+  // 4 rounds). masterByFc above only keeps the LAST one seen per plant code,
+  // so we can't rely on it alone to tag a comment's round - otherwise every
+  // comment for that plant would incorrectly inherit its most recent round.
+  // Instead, resolve the round from the comment's own visit date.
+  const MONTH_ABBR_TO_NUM = {JAN:1,FEB:2,MAR:3,APR:4,MAY:5,JUN:6,JUL:7,AUG:8,SEP:9,OCT:10,NOV:11,DEC:12};
+  function parseRoundMonths(roundLabel){
+    const mm = String(roundLabel).match(/([A-Za-z]{3})[^A-Za-z]*-[^A-Za-z]*([A-Za-z]{3})/);
+    if(!mm) return [];
+    const startM = MONTH_ABBR_TO_NUM[mm[1].toUpperCase()];
+    const endM = MONTH_ABBR_TO_NUM[mm[2].toUpperCase()];
+    if(!startM || !endM) return [];
+    const months = [startM]; let cur = startM;
+    while(cur !== endM && months.length < 3){ cur = cur % 12 + 1; months.push(cur); }
+    return months;
+  }
+  const roundByMonth = {};
+  rounds.forEach(r=>{ parseRoundMonths(r).forEach(mn=>{ roundByMonth[mn] = r; }); });
+  function resolveRoundFromDate(dateStr, fallbackRound){
+    if(dateStr){
+      const mn = parseInt(dateStr.split('-')[1], 10);
+      if(roundByMonth[mn]) return roundByMonth[mn];
+    }
+    return fallbackRound;
+  }
+
   const REGION_NORMALIZE = {
     'metro':'1-Metro', 'east':'2-East', 'west':'3-West',
     'north':'4-North', 'northeast':'5-NorthEast', 'south':'6-South',
@@ -2329,18 +2355,20 @@ function parseWorkbookToData(wb){
         const mm = s.match(/(\d{4})-(\d{2})-(\d{2})/);
         if(mm) dateStr = mm[1]+'-'+mm[2];
       }
-      const key = pn+'|'+maintopic;
-      (grouped[key] = grouped[key] || []).push({remark:remarkTrim, user_name:r[18], date:dateStr});
+      const resolvedRound = resolveRoundFromDate(dateStr, m ? m.round : null);
+      const key = pn+'|'+maintopic+'|'+resolvedRound;
+      (grouped[key] = grouped[key] || []).push({remark:remarkTrim, user_name:r[18], date:dateStr, round:resolvedRound});
       if(!metaCache[pn]){
         metaCache[pn] = {
           plant_name: m ? m.plant_name : r[9], owner: m ? m.owner : r[7],
           division: m ? normalizeRegion(m.division) : (teamRegionByFc[pn] || normalizeRegion(r[19])),
-          pjk: m ? m.pjk : r[20], round: m ? m.round : null,
+          pjk: m ? m.pjk : r[20],
         };
       }
     }
     Object.keys(grouped).forEach(key=>{
-      const [pn, maintopic] = key.split('|');
+      const parts = key.split('|');
+      const pn = parts[0], maintopic = parts[1], keyRound = parts[2];
       const items = grouped[key];
       const nonEmpty = items.filter(it=>it.remark);
       let best;
@@ -2355,7 +2383,7 @@ function parseWorkbookToData(wb){
       const meta = metaCache[pn];
       comments.push({
         plant_no: pn, plant_name: meta.plant_name, owner: meta.owner,
-        division: meta.division, pjk: meta.pjk, round: meta.round,
+        division: meta.division, pjk: meta.pjk, round: (keyRound==='null' ? null : keyRound),
         maintopic, remark: (best.remark || 'ไม่มี Comment'), user_name: best.user_name, date: best.date,
       });
     });
