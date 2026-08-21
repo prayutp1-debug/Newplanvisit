@@ -2278,6 +2278,31 @@ function parseWorkbookToData(wb){
   const rounds = Array.from(new Set(plants.map(p=>p.round).filter(Boolean))).sort();
   const masterByFc = {}; plants.forEach(p=>masterByFc[p.fcplno]=p);
 
+  const REGION_NORMALIZE = {
+    'metro':'1-Metro', 'east':'2-East', 'west':'3-West',
+    'north':'4-North', 'northeast':'5-NorthEast', 'south':'6-South',
+  };
+  function normalizeRegion(v){
+    if(!v) return v;
+    const key = String(v).trim().toLowerCase();
+    return REGION_NORMALIZE[key] || v;
+  }
+
+  // TEAM sheet: plant_no (รหัสโรงงาน) -> ภาค (region), used as fallback division
+  // source for comments whose plant isn't found in the ACT master list.
+  const teamRegionByFc = {};
+  if(wb.SheetNames.includes('TEAM')){
+    const wsTeam = wb.Sheets['TEAM'];
+    const rowsTeam = XLSX.utils.sheet_to_json(wsTeam, {header:1, raw:true, defval:null});
+    for(let i=1;i<rowsTeam.length;i++){
+      const r = rowsTeam[i];
+      if(!r || !r[1]) continue;
+      const fc = String(r[1]).trim();
+      const region = r[4];
+      if(region) teamRegionByFc[fc] = normalizeRegion(region);
+    }
+  }
+
   const commentSheetName = wb.SheetNames.includes('Comment') ? 'Comment'
     : wb.SheetNames.includes('DATA จาก web') ? 'DATA จาก web' : null;
   let comments = [];
@@ -2309,7 +2334,8 @@ function parseWorkbookToData(wb){
       if(!metaCache[pn]){
         metaCache[pn] = {
           plant_name: m ? m.plant_name : r[9], owner: m ? m.owner : r[7],
-          division: m ? m.division : r[19], pjk: m ? m.pjk : r[20], round: m ? m.round : null,
+          division: m ? normalizeRegion(m.division) : (teamRegionByFc[pn] || normalizeRegion(r[19])),
+          pjk: m ? m.pjk : r[20], round: m ? m.round : null,
         };
       }
     }
