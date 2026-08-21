@@ -2120,6 +2120,7 @@ function cleanDiv(v){ if(!v || v==='#N/A') return null; return String(v).trim();
 const C_SELECTS = {division:cDivision, pjk:cPjk, owner:cOwner};
 
 function commentMatchExcept(c, excludeKey, fs){
+  if(fs.round && c.round && c.round !== fs.round) return false;
   if(excludeKey!=='division' && fs.division && cleanDiv(c.division)!==fs.division) return false;
   if(excludeKey!=='pjk' && fs.pjk && c.pjk!==fs.pjk) return false;
   if(excludeKey!=='owner' && fs.owner && c.owner!==fs.owner) return false;
@@ -2127,7 +2128,7 @@ function commentMatchExcept(c, excludeKey, fs){
 }
 
 function readCommentFilterState(){
-  return { division:cDivision.value, pjk:cPjk.value, owner:cOwner.value };
+  return { division:cDivision.value, pjk:cPjk.value, owner:cOwner.value, round:fRound.value };
 }
 
 function updateCommentCascadingOptions(){
