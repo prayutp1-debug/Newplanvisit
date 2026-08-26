@@ -720,6 +720,18 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
   .pill{background:#f6f7fa; border:1px solid var(--line); border-radius:20px; padding:6px 13px; font-size:11.8px; font-weight:600; color:var(--ink-soft);}
   .pill b{color:var(--ink); font-weight:800;}
   .comment-list{display:flex; flex-direction:column; gap:14px; margin-top:14px;}
+
+  .visits-list{display:flex; flex-direction:column; gap:12px;}
+  .visit-card{border:1px solid var(--line); border-radius:12px; padding:14px 16px; background:#fff; transition:.15s;}
+  .visit-card:hover{border-color:#d8dce4; box-shadow:0 4px 14px -8px rgba(20,25,35,.18);}
+  .visit-card-head{display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; margin-bottom:6px;}
+  .visit-card-title{font-weight:800; font-size:14px;}
+  .visit-card-sub{font-size:11.5px; color:var(--ink-soft); margin-top:2px;}
+  .visit-date-badge{background:var(--blue-soft); color:var(--blue); font-size:11px; font-weight:700; padding:4px 12px; border-radius:20px; white-space:nowrap;}
+  .visit-meta-row{display:flex; gap:16px; font-size:12px; color:var(--ink-soft); margin:8px 0 10px; flex-wrap:wrap;}
+  .visit-comments{display:grid; grid-template-columns:repeat(auto-fit, minmax(220px,1fr)); gap:8px;}
+  .visit-comment-box{background:#f8f9fb; border:1px solid var(--line); border-radius:9px; padding:9px 11px; font-size:12.3px; line-height:1.55; color:#2b3444;}
+  .visit-no-comment{font-size:12px; color:#9aa3b2; font-style:italic;}
   .comment-group{border:1px solid var(--line); border-radius:12px; overflow:hidden;}
   .comment-group-head{
     display:flex; align-items:center; justify-content:space-between; gap:10px;
@@ -946,6 +958,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     <button class="tab-btn active" data-tab="overview">ภาพรวมทั้งหมด</button>
     <button class="tab-btn" data-tab="detail">รายละเอียดโรงงาน</button>
     <button class="tab-btn" data-tab="comment">Comment</button>
+    <button class="tab-btn" data-tab="visits">นัดหมายเข้าพบ</button>
   </div>
 </div>
 <div class="data-status-bar" id="data-status-bar" style="display:none;"></div>
@@ -1237,6 +1250,38 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     </div>
   </div>
 
+  <!-- ============ VISITS (นัดหมายเข้าพบ) VIEW ============ -->
+  <div class="view" id="view-visits">
+    <div class="panel">
+      <div class="panel-head">
+        <h3>ตัวกรองนัดหมายเข้าพบ</h3>
+        <span class="panel-sub">ข้อมูลจาก Sheet "DATA จาก web" เฉพาะแถวที่ visit_type = VISIT</span>
+      </div>
+      <div class="comment-toolbar">
+        <div class="f-field">
+          <label>รอบการตรวจ</label>
+          <select id="f-round-visits"></select>
+        </div>
+        <div class="f-field">
+          <label>ค้นหา (บริษัท / โรงงาน / ผู้นัดหมาย)</label>
+          <input type="search" id="v-search" placeholder="พิมพ์คำค้นหา...">
+        </div>
+        <div class="f-field">
+          <label>Divison</label>
+          <select id="v-division"><option value="">ทั้งหมด</option></select>
+        </div>
+        <button class="btn-reset" id="v-reset">ล้างตัวกรอง</button>
+      </div>
+      <div class="comment-count-row">
+        <div class="pill">ทั้งหมด <b id="v-count">0</b> นัดหมาย</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div id="visits-list" class="visits-list"></div>
+    </div>
+  </div>
+
 </div>
 
 <div class="toast" id="toast"></div>
@@ -1353,6 +1398,7 @@ document.querySelectorAll('.subtab-btn').forEach(btn=>{
 const fRound = document.getElementById('f-round');
 const fRoundDetail = document.getElementById('f-round-detail');
 const fRoundComment = document.getElementById('f-round-comment');
+const fRoundVisits = document.getElementById('f-round-visits');
 const MONTH_ABBR = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
 
 function pickDefaultRound(rounds){
@@ -1378,11 +1424,15 @@ function setupRoundSelect(){
     fRoundComment.innerHTML = optionsHTML;
     fRoundComment.value = def;
   }
+  if(fRoundVisits){
+    fRoundVisits.innerHTML = optionsHTML;
+    fRoundVisits.value = def;
+  }
 }
 
 function syncRoundSelectors(sourceEl){
   const val = sourceEl.value;
-  [fRound, fRoundDetail, fRoundComment].forEach(el=>{ if(el && el!==sourceEl) el.value = val; });
+  [fRound, fRoundDetail, fRoundComment, fRoundVisits].forEach(el=>{ if(el && el!==sourceEl) el.value = val; });
 }
 
 function plantsInRound(){
@@ -2096,10 +2146,12 @@ function handleRoundChange(sourceEl){
   [fDivision,fOwner,fPjk,fGrade,fType].forEach(el=>el.value='');
   renderSection2();
   if(typeof renderComments === 'function') renderComments();
+  if(typeof renderVisits === 'function') renderVisits();
 }
 fRound.addEventListener('change', ()=>handleRoundChange(fRound));
 if(fRoundDetail) fRoundDetail.addEventListener('change', ()=>handleRoundChange(fRoundDetail));
 if(fRoundComment) fRoundComment.addEventListener('change', ()=>handleRoundChange(fRoundComment));
+if(fRoundVisits) fRoundVisits.addEventListener('change', ()=>handleRoundChange(fRoundVisits));
 fGradeOv.addEventListener('change', renderOverview);
 [fDivision,fOwner,fPjk,fGrade,fType].forEach(el=>el.addEventListener('change', renderSection2));
 document.getElementById('dash-reset').addEventListener('click', ()=>{
@@ -2232,6 +2284,79 @@ function renderCommentAll(){
 }
 
 /* ============================================================
+   VISITS (นัดหมายเข้าพบ) TAB
+   ============================================================ */
+const vSearch = document.getElementById('v-search');
+const vDivision = document.getElementById('v-division');
+
+function setupVisitsFilters(){
+  const activeRound = fRound.value;
+  const visits = DATA.visits || [];
+  const scoped = activeRound ? visits.filter(v=>v.round===activeRound) : visits;
+  const cur = vDivision.value;
+  fillSelect(vDivision, scoped.map(v=>cleanDiv(v.division)));
+  if(Array.from(vDivision.options).some(o=>o.value===cur)) vDivision.value = cur; else vDivision.value = '';
+}
+
+function renderVisits(){
+  setupVisitsFilters();
+  const visits = DATA.visits || [];
+  const activeRound = fRound.value;
+  const q = vSearch.value.trim().toLowerCase();
+  const dv = vDivision.value;
+  let list = visits.filter(v=>{
+    if(activeRound && v.round !== activeRound) return false;
+    if(dv && cleanDiv(v.division) !== dv) return false;
+    if(q){
+      const hay = `${v.plant_name} ${v.company} ${v.user_name}`.toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    return true;
+  });
+  list = list.slice().sort((a,b)=> (b.date||'').localeCompare(a.date||''));
+
+  document.getElementById('v-count').textContent = list.length;
+
+  const host = document.getElementById('visits-list');
+  if(!list.length){
+    host.innerHTML = `<div class="empty-state"><div class="big">📅</div>ไม่พบนัดหมายตามเงื่อนไขที่เลือก</div>`;
+    return;
+  }
+  host.innerHTML = list.map(v=>`
+    <div class="visit-card">
+      <div class="visit-card-head">
+        <div>
+          <div class="visit-card-title">${esc(v.plant_name)}</div>
+          <div class="visit-card-sub">${esc(v.company)}</div>
+        </div>
+        <span class="visit-date-badge">🗓️ ${esc(v.dateDisplay)}</span>
+      </div>
+      <div class="visit-meta-row">
+        <span>👤 ผู้นัดหมาย: ${esc(v.user_name)}</span>
+        <span class="tag tag-div">${esc(cleanDiv(v.division)||'-')}</span>
+      </div>
+      ${v.comments && v.comments.length ? `
+        <div class="visit-comments">
+          ${v.comments.map(c=>`<div class="visit-comment-box">${esc(c)}</div>`).join('')}
+        </div>
+      ` : `<div class="visit-no-comment">ไม่มี Comment</div>`}
+    </div>
+  `).join('');
+}
+
+[vDivision].forEach(el=>el.addEventListener('change', renderVisits));
+vSearch.addEventListener('input', renderVisits);
+document.getElementById('v-reset').addEventListener('click', ()=>{
+  vSearch.value=''; vDivision.value='';
+  renderVisits();
+});
+
+function renderVisitsAll(){
+  setupVisitsFilters();
+  renderVisits();
+}
+
+/* ============================================================
    UPLOAD (re-parse xlsx client-side) / DOWNLOAD
    ============================================================ */
 const TOPIC_LABELS = ['เครื่องจักร','Safety','วัตถุดิบ','รถโม่','ผลิต/จัดส่ง','คุณภาพ','NPS','5ส.'];
@@ -2245,6 +2370,28 @@ const SHORT_LABEL_MAP = {
   'การบริการ/ประเมินผล NPS': 'NPS',
   '5 ส.': '5ส.',
 };
+
+/* Robust date-cell parser: handles JS Date objects (from cellDates:true),
+   "YYYY-MM-DD..." strings, and raw Excel serial-date numbers as fallback. */
+function parseExcelDateCell(v){
+  if(v == null || v === '') return null;
+  if(v instanceof Date && !isNaN(v.getTime())){
+    return { y: v.getFullYear(), m: v.getMonth()+1, d: v.getDate() };
+  }
+  if(typeof v === 'string'){
+    const mm = v.match(/(\d{4})-(\d{2})-(\d{2})/);
+    if(mm) return { y: parseInt(mm[1],10), m: parseInt(mm[2],10), d: parseInt(mm[3],10) };
+    return null;
+  }
+  if(typeof v === 'number' && isFinite(v)){
+    // Excel serial date (days since 1899-12-30)
+    const epoch = new Date(Date.UTC(1899, 11, 30));
+    const dt = new Date(epoch.getTime() + v * 86400000);
+    if(!isNaN(dt.getTime())) return { y: dt.getUTCFullYear(), m: dt.getUTCMonth()+1, d: dt.getUTCDate() };
+  }
+  return null;
+}
+function pad2(n){ return String(n).padStart(2,'0'); }
 
 function parseWorkbookToData(wb){
   const actSheetName = wb.SheetNames.includes('ACT') ? 'ACT'
@@ -2317,6 +2464,7 @@ function parseWorkbookToData(wb){
   // TEAM sheet: plant_no (รหัสโรงงาน) -> ภาค (region), used as fallback division
   // source for comments whose plant isn't found in the ACT master list.
   const teamRegionByFc = {};
+  const teamCompanyByFc = {};
   if(wb.SheetNames.includes('TEAM')){
     const wsTeam = wb.Sheets['TEAM'];
     const rowsTeam = XLSX.utils.sheet_to_json(wsTeam, {header:1, raw:true, defval:null});
@@ -2325,18 +2473,22 @@ function parseWorkbookToData(wb){
     teamHeader.forEach((h,i)=>{ if(h!=null) teamColIdx[String(h).trim()] = i; });
     const tPlantNo = teamColIdx['plant_no'] ?? 1;
     const tDivision = teamColIdx['division_name'] ?? 4;
+    const tCompany = teamColIdx['บจก./หจก.'] ?? 3;
     for(let i=1;i<rowsTeam.length;i++){
       const r = rowsTeam[i];
       if(!r || !r[tPlantNo]) continue;
       const fc = String(r[tPlantNo]).trim();
       const region = r[tDivision];
       if(region) teamRegionByFc[fc] = normalizeRegion(region);
+      const company = r[tCompany];
+      if(company) teamCompanyByFc[fc] = String(company).trim();
     }
   }
 
   const commentSheetName = wb.SheetNames.includes('Comment') ? 'Comment'
     : wb.SheetNames.includes('DATA จาก web') ? 'DATA จาก web' : null;
   let comments = [];
+  let visits = [];
   if(commentSheetName){
     const wsD = wb.Sheets[commentSheetName];
     const rowsD = XLSX.utils.sheet_to_json(wsD, {header:1, raw:true, defval:null});
@@ -2358,6 +2510,11 @@ function parseWorkbookToData(wb){
     const cDivison = colIdx['Divison'] ?? 21;
     const cPjk = colIdx['ผจก.ผลิตที่ดูแล FC'] ?? 22;
     const cMonth = colIdx['Month'] ?? 25;
+    const cVisitType = colIdx['visit_type'];
+    const cComment1 = colIdx['comment'];
+    const cComment2 = colIdx['comment2'];
+    const cComment3 = colIdx['comment3'];
+    const cComment4 = colIdx['comment4'];
 
     for(let i=1;i<rowsD.length;i++){
       const r = rowsD[i];
@@ -2375,11 +2532,8 @@ function parseWorkbookToData(wb){
       let resolvedRound = (r[cMonth]!=null && String(r[cMonth]).trim()) ? String(r[cMonth]).trim() : null;
       if(!resolvedRound){
         let dateStr = null;
-        if(r[cVisitDate]){
-          const s = String(r[cVisitDate]);
-          const mm = s.match(/(\d{4})-(\d{2})-(\d{2})/);
-          if(mm) dateStr = mm[1]+'-'+mm[2];
-        }
+        const dc = parseExcelDateCell(r[cVisitDate]);
+        if(dc) dateStr = dc.y+'-'+pad2(dc.m);
         resolvedRound = resolveRoundFromDate(dateStr, m ? m.round : null);
       }
       const key = pn+'|'+maintopic+'|'+resolvedRound;
@@ -2414,9 +2568,42 @@ function parseWorkbookToData(wb){
         maintopic, remark: (best.remark || 'ไม่มี Comment'), user_name: best.user_name, date: finalRound,
       });
     });
+
+    // ---- appointments (visit_type === 'VISIT') ----
+    if(cVisitType != null){
+      for(let i=1;i<rowsD.length;i++){
+        const r = rowsD[i];
+        if(!r) continue;
+        if(String(r[cVisitType]||'').trim() !== 'VISIT') continue;
+        const plant_no = r[cPlantNo];
+        if(!plant_no) continue;
+        const pn = String(plant_no).trim();
+        const m = masterByFc[pn];
+        let dateStr = null, dateDisplay = null;
+        const dcv = parseExcelDateCell(r[cVisitDate]);
+        if(dcv){
+          dateStr = dcv.y+'-'+pad2(dcv.m)+'-'+pad2(dcv.d);
+          dateDisplay = pad2(dcv.d)+'/'+pad2(dcv.m)+'/'+dcv.y;
+        }
+        const commentBoxes = [cComment1, cComment2, cComment3, cComment4]
+          .map(ci => ci!=null ? r[ci] : null)
+          .filter(v => v!=null && String(v).trim())
+          .map(v => String(v).trim());
+        const round = (r[cMonth]!=null && String(r[cMonth]).trim()) ? String(r[cMonth]).trim() : null;
+        visits.push({
+          plant_no: pn,
+          plant_name: m ? m.plant_name : r[cPlantName],
+          company: teamCompanyByFc[pn] || (m ? m.owner : r[cFrName]) || '-',
+          division: m ? normalizeRegion(m.division) : (teamRegionByFc[pn] || normalizeRegion(r[cDivison])),
+          user_name: r[cUserName] || '-',
+          date: dateStr, dateDisplay: dateDisplay || '-',
+          comments: commentBoxes, round,
+        });
+      }
+    }
   }
 
-  return { plants, standard: STDV, max_score: MAXV, topics: TOPIC_LABELS, rounds, comments };
+  return { plants, standard: STDV, max_score: MAXV, topics: TOPIC_LABELS, rounds, comments, visits };
 }
 
 document.getElementById('btn-refresh-data').addEventListener('click', async ()=>{
@@ -2430,6 +2617,7 @@ document.getElementById('btn-refresh-data').addEventListener('click', async ()=>
       dataSource = 'auto-fetch';
       renderDashboardAll();
       renderCommentAll();
+      renderVisitsAll();
       updateDataStatusBar();
       showToast(`โหลดข้อมูลล่าสุดสำเร็จ: ${fetched.plants.length} โรงงาน, ${fetched.comments.length} comment`);
     } else {
@@ -2454,6 +2642,7 @@ document.getElementById('btn-reset-data').addEventListener('click', async ()=>{
   }
   renderDashboardAll();
   renderCommentAll();
+  renderVisitsAll();
   updateDataStatusBar();
 });
 
@@ -2747,7 +2936,7 @@ async function tryAutoFetchExcel(){
     const res = await fetch(EXCEL_SOURCE_URL + '?t=' + Date.now(), {cache:'no-store'});
     if(!res.ok) return null;
     const buf = await res.arrayBuffer();
-    const wb = XLSX.read(new Uint8Array(buf), {type:'array'});
+    const wb = XLSX.read(new Uint8Array(buf), {type:'array', cellDates:true});
     const data = parseWorkbookToData(wb);
     return (data && data.plants && data.plants.length) ? data : null;
   }catch(e){
@@ -2771,6 +2960,7 @@ async function initApp(){
   }
   renderDashboardAll();
   renderCommentAll();
+  renderVisitsAll();
   updateDataStatusBar();
 }
 </script>
@@ -2880,7 +3070,7 @@ async function tryAutoFetchUsers(){
     const res = await fetch(USER_SOURCE_URL + '?t=' + Date.now(), {cache:'no-store'});
     if(!res.ok) return null;
     const buf = await res.arrayBuffer();
-    const wb = XLSX.read(new Uint8Array(buf), {type:'array'});
+    const wb = XLSX.read(new Uint8Array(buf), {type:'array', cellDates:true});
     const sheetName = wb.SheetNames.includes('Sheet1') ? 'Sheet1' : wb.SheetNames[0];
     const ws = wb.Sheets[sheetName];
     const rows = XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:null});
