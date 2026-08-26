@@ -1271,6 +1271,10 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
           <select id="v-company"><option value="">ทั้งหมด</option></select>
         </div>
         <div class="f-field">
+          <label>ผจก.ผลิต CPAC</label>
+          <select id="v-pjk"><option value="">ทั้งหมด</option></select>
+        </div>
+        <div class="f-field">
           <label>ค้นหา (บริษัท / โรงงาน / ผู้นัดหมาย)</label>
           <input type="search" id="v-search" placeholder="พิมพ์คำค้นหา...">
         </div>
@@ -2293,6 +2297,7 @@ function renderCommentAll(){
 const vSearch = document.getElementById('v-search');
 const vDivision = document.getElementById('v-division');
 const vCompany = document.getElementById('v-company');
+const vPjk = document.getElementById('v-pjk');
 
 /* Cascading: each dropdown's options respect the round plus the OTHER
    active filters, so you can never pick a combination with zero results. */
@@ -2301,15 +2306,24 @@ function setupVisitsFilters(){
   const visits = DATA.visits || [];
   const base = activeRound ? visits.filter(v=>v.round===activeRound) : visits;
 
+  const matchExcept = (v, exclude)=>{
+    if(exclude!=='division' && vDivision.value && cleanDiv(v.division)!==vDivision.value) return false;
+    if(exclude!=='company' && vCompany.value && v.company!==vCompany.value) return false;
+    if(exclude!=='pjk' && vPjk.value && v.pjk!==vPjk.value) return false;
+    return true;
+  };
+
   const curDv = vDivision.value;
-  const scopedForDiv = vCompany.value ? base.filter(v=>v.company===vCompany.value) : base;
-  fillSelect(vDivision, scopedForDiv.map(v=>cleanDiv(v.division)));
+  fillSelect(vDivision, base.filter(v=>matchExcept(v,'division')).map(v=>cleanDiv(v.division)));
   if(Array.from(vDivision.options).some(o=>o.value===curDv)) vDivision.value = curDv; else vDivision.value = '';
 
   const curCo = vCompany.value;
-  const scopedForCo = vDivision.value ? base.filter(v=>cleanDiv(v.division)===vDivision.value) : base;
-  fillSelect(vCompany, scopedForCo.map(v=>v.company));
+  fillSelect(vCompany, base.filter(v=>matchExcept(v,'company')).map(v=>v.company));
   if(Array.from(vCompany.options).some(o=>o.value===curCo)) vCompany.value = curCo; else vCompany.value = '';
+
+  const curPjk = vPjk.value;
+  fillSelect(vPjk, base.filter(v=>matchExcept(v,'pjk')).map(v=>v.pjk));
+  if(Array.from(vPjk.options).some(o=>o.value===curPjk)) vPjk.value = curPjk; else vPjk.value = '';
 }
 
 function renderVisits(){
@@ -2319,10 +2333,12 @@ function renderVisits(){
   const q = vSearch.value.trim().toLowerCase();
   const dv = vDivision.value;
   const co = vCompany.value;
+  const pj = vPjk.value;
   let list = visits.filter(v=>{
     if(activeRound && v.round !== activeRound) return false;
     if(dv && cleanDiv(v.division) !== dv) return false;
     if(co && v.company !== co) return false;
+    if(pj && v.pjk !== pj) return false;
     if(q){
       const hay = `${v.plant_name} ${v.company} ${v.user_name}`.toLowerCase();
       if(!hay.includes(q)) return false;
@@ -2356,6 +2372,7 @@ function renderVisits(){
       </div>
       <div class="visit-meta-row">
         <span>👤 ผู้นัดหมาย: ${esc(v.user_name)}</span>
+        <span>🧑‍💼 ผจก.ผลิต: ${esc(v.pjk||'-')}</span>
         <span class="tag tag-div">${esc(cleanDiv(v.division)||'-')}</span>
       </div>
       ${v.comments && v.comments.length ? `
@@ -2367,10 +2384,10 @@ function renderVisits(){
   `).join('');
 }
 
-[vDivision, vCompany].forEach(el=>el.addEventListener('change', renderVisits));
+[vDivision, vCompany, vPjk].forEach(el=>el.addEventListener('change', renderVisits));
 vSearch.addEventListener('input', renderVisits);
 document.getElementById('v-reset').addEventListener('click', ()=>{
-  vSearch.value=''; vDivision.value=''; vCompany.value='';
+  vSearch.value=''; vDivision.value=''; vCompany.value=''; vPjk.value='';
   renderVisits();
 });
 
@@ -2618,6 +2635,7 @@ function parseWorkbookToData(wb){
           plant_name: m ? m.plant_name : r[cPlantName],
           company: teamCompanyByFc[pn] || (m ? m.owner : r[cFrName]) || '-',
           division: m ? normalizeRegion(m.division) : (teamRegionByFc[pn] || normalizeRegion(r[cDivison])),
+          pjk: (m ? m.pjk : r[cPjk]) || '-',
           user_name: r[cUserName] || '-',
           date: dateStr, dateDisplay: dateDisplay || '-',
           comments: commentBoxes, round,
