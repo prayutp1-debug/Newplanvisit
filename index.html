@@ -2320,11 +2320,16 @@ function parseWorkbookToData(wb){
   if(wb.SheetNames.includes('TEAM')){
     const wsTeam = wb.Sheets['TEAM'];
     const rowsTeam = XLSX.utils.sheet_to_json(wsTeam, {header:1, raw:true, defval:null});
+    const teamHeader = rowsTeam[0] || [];
+    const teamColIdx = {};
+    teamHeader.forEach((h,i)=>{ if(h!=null) teamColIdx[String(h).trim()] = i; });
+    const tPlantNo = teamColIdx['plant_no'] ?? 1;
+    const tDivision = teamColIdx['division_name'] ?? 4;
     for(let i=1;i<rowsTeam.length;i++){
       const r = rowsTeam[i];
-      if(!r || !r[1]) continue;
-      const fc = String(r[1]).trim();
-      const region = r[4];
+      if(!r || !r[tPlantNo]) continue;
+      const fc = String(r[tPlantNo]).trim();
+      const region = r[tDivision];
       if(region) teamRegionByFc[fc] = normalizeRegion(region);
     }
   }
@@ -2337,37 +2342,53 @@ function parseWorkbookToData(wb){
     const rowsD = XLSX.utils.sheet_to_json(wsD, {header:1, raw:true, defval:null});
     const grouped = {};
     const metaCache = {};
+
+    // Resolve columns by HEADER NAME instead of fixed position, so this keeps
+    // working even if columns get inserted/reordered in the source sheet later.
+    const headerRow = rowsD[0] || [];
+    const colIdx = {};
+    headerRow.forEach((h,i)=>{ if(h!=null) colIdx[String(h).trim()] = i; });
+    const cPlantNo = colIdx['plant_no'] ?? 8;
+    const cPlantName = colIdx['plant_name'] ?? 9;
+    const cVisitDate = colIdx['visit_date'] ?? 10;
+    const cMaintopic = colIdx['maintopic'] ?? 11;
+    const cRemark = colIdx['remark'] ?? 15;
+    const cFrName = colIdx['fr_name'] ?? 7;
+    const cUserName = colIdx['user_name'] ?? 18;
+    const cDivison = colIdx['Divison'] ?? 21;
+    const cPjk = colIdx['ผจก.ผลิตที่ดูแล FC'] ?? 22;
+    const cMonth = colIdx['Month'] ?? 25;
+
     for(let i=1;i<rowsD.length;i++){
       const r = rowsD[i];
-      if(!r || r.length<23) continue;
-      const plant_no = r[8];
+      if(!r) continue;
+      const plant_no = r[cPlantNo];
       if(!plant_no) continue;
-      const maintopicRaw = r[11];
+      const maintopicRaw = r[cMaintopic];
       if(!maintopicRaw) continue;
-      const remark = r[15];
+      const remark = r[cRemark];
       const pn = String(plant_no).trim();
       const m = masterByFc[pn];
       const maintopic = SHORT_LABEL_MAP[maintopicRaw] || maintopicRaw;
       const remarkTrim = (remark!=null && String(remark).trim()) ? String(remark).trim() : '';
-      // column X (index 23) = "Month" - the sheet's own authoritative round label for
-      // this row. Use it directly instead of inferring from the visit date.
-      let resolvedRound = (r.length > 23 && r[23]!=null && String(r[23]).trim()) ? String(r[23]).trim() : null;
+      // "Month" column = the sheet's own authoritative round label for this row.
+      let resolvedRound = (r[cMonth]!=null && String(r[cMonth]).trim()) ? String(r[cMonth]).trim() : null;
       if(!resolvedRound){
         let dateStr = null;
-        if(r[10]){
-          const s = String(r[10]);
+        if(r[cVisitDate]){
+          const s = String(r[cVisitDate]);
           const mm = s.match(/(\d{4})-(\d{2})-(\d{2})/);
           if(mm) dateStr = mm[1]+'-'+mm[2];
         }
         resolvedRound = resolveRoundFromDate(dateStr, m ? m.round : null);
       }
       const key = pn+'|'+maintopic+'|'+resolvedRound;
-      (grouped[key] = grouped[key] || []).push({remark:remarkTrim, user_name:r[18], round:resolvedRound});
+      (grouped[key] = grouped[key] || []).push({remark:remarkTrim, user_name:r[cUserName], round:resolvedRound});
       if(!metaCache[pn]){
         metaCache[pn] = {
-          plant_name: m ? m.plant_name : r[9], owner: m ? m.owner : r[7],
-          division: m ? normalizeRegion(m.division) : (teamRegionByFc[pn] || normalizeRegion(r[19])),
-          pjk: m ? m.pjk : r[20],
+          plant_name: m ? m.plant_name : r[cPlantName], owner: m ? m.owner : r[cFrName],
+          division: m ? normalizeRegion(m.division) : (teamRegionByFc[pn] || normalizeRegion(r[cDivison])),
+          pjk: m ? m.pjk : r[cPjk],
         };
       }
     }
