@@ -636,6 +636,10 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
   .kpi.k2{--kc:var(--green-soft);} .kpi.k2 .val{color:var(--green);}
   .kpi.k3{--kc:var(--red-soft);} .kpi.k3 .val{color:var(--red);}
   .kpi.k4{--kc:var(--amber-soft);} .kpi.k4 .val{color:var(--amber);}
+  .kpi.visits-kpi-comment{--kc:var(--green-soft);} .kpi.visits-kpi-comment .val{color:var(--green);}
+  .kpi.visits-kpi-nocomment{--kc:var(--amber-soft);} .kpi.visits-kpi-nocomment .val{color:var(--amber);}
+  .visits-kpi-grid{grid-template-columns:repeat(5,1fr);}
+  @media (max-width:1180px){ .visits-kpi-grid{grid-template-columns:repeat(2,1fr);} }
 
   .charts-grid{display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-bottom:12px;}
   .chart-box{height:210px; position:relative; max-width:100%;}
@@ -958,7 +962,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     <button class="tab-btn active" data-tab="overview">ภาพรวมทั้งหมด</button>
     <button class="tab-btn" data-tab="detail">รายละเอียดโรงงาน</button>
     <button class="tab-btn" data-tab="comment">Comment</button>
-    <button class="tab-btn" data-tab="visits">นัดหมายเข้าพบ</button>
+    <button class="tab-btn" data-tab="visits">รายงานการเข้าเยี่ยม</button>
   </div>
 </div>
 <div class="data-status-bar" id="data-status-bar" style="display:none;"></div>
@@ -1250,11 +1254,11 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     </div>
   </div>
 
-  <!-- ============ VISITS (นัดหมายเข้าพบ) VIEW ============ -->
+  <!-- ============ VISITS (รายงานการเข้าเยี่ยม) VIEW ============ -->
   <div class="view" id="view-visits">
     <div class="panel">
       <div class="panel-head">
-        <h3>ตัวกรองนัดหมายเข้าพบ</h3>
+        <h3>ตัวกรองรายงานการเข้าเยี่ยม</h3>
         <span class="panel-sub">ข้อมูลจาก Sheet "DATA จาก web" เฉพาะแถวที่ visit_type = VISIT</span>
       </div>
       <div class="comment-toolbar">
@@ -1282,6 +1286,34 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
       </div>
       <div class="comment-count-row">
         <div class="pill">ทั้งหมด <b id="v-count">0</b> นัดหมาย</div>
+      </div>
+    </div>
+
+    <div class="kpi-grid visits-kpi-grid">
+      <div class="kpi k1">
+        <div class="lbl">จำนวนโรงงานทั้งหมด</div>
+        <div class="val" id="v-kpi-total">0</div>
+        <div class="sub">ในเงื่อนไขที่เลือก</div>
+      </div>
+      <div class="kpi k2">
+        <div class="lbl">เข้าพบแล้ว</div>
+        <div class="val" id="v-kpi-visited">0</div>
+        <div class="sub" id="v-kpi-visited-pct">0% ของทั้งหมด</div>
+      </div>
+      <div class="kpi visits-kpi-comment">
+        <div class="lbl">มี Comment</div>
+        <div class="val" id="v-kpi-with-comment">0</div>
+        <div class="sub">โรงงานที่เข้าพบแล้วมีข้อเสนอแนะ</div>
+      </div>
+      <div class="kpi visits-kpi-nocomment">
+        <div class="lbl">ไม่มี Comment</div>
+        <div class="val" id="v-kpi-no-comment">0</div>
+        <div class="sub">เข้าพบแล้วแต่ยังไม่มีข้อเสนอแนะ</div>
+      </div>
+      <div class="kpi k3">
+        <div class="lbl">ไม่มีการเข้าพบ</div>
+        <div class="val" id="v-kpi-not-visited">0</div>
+        <div class="sub">โรงงานที่ยังไม่ได้เข้าพบ</div>
       </div>
     </div>
 
@@ -2292,7 +2324,7 @@ function renderCommentAll(){
 }
 
 /* ============================================================
-   VISITS (นัดหมายเข้าพบ) TAB
+   VISITS (รายงานการเข้าเยี่ยม) TAB
    ============================================================ */
 const vSearch = document.getElementById('v-search');
 const vDivision = document.getElementById('v-division');
@@ -2355,6 +2387,7 @@ function renderVisits(){
   });
 
   document.getElementById('v-count').textContent = list.length;
+  renderVisitsSummary(list, dv, co, pj);
 
   const host = document.getElementById('visits-list');
   if(!list.length){
@@ -2382,6 +2415,34 @@ function renderVisits(){
       ` : `<div class="visit-no-comment">ไม่มี Comment</div>`}
     </div>
   `).join('');
+}
+
+function renderVisitsSummary(list, dv, co, pj){
+  // "total factories in scope" = ACT master plants matching the same
+  // round/division/company/pjk filters currently applied to the visit list.
+  let totalPlants = plantsInRound();
+  if(dv) totalPlants = totalPlants.filter(p=>p.division===dv);
+  if(co) totalPlants = totalPlants.filter(p=>p.owner===co);
+  if(pj) totalPlants = totalPlants.filter(p=>p.pjk===pj);
+  const totalCount = totalPlants.length;
+
+  const visitedPlantNos = new Set(list.map(v=>v.plant_no));
+  const visitedCount = visitedPlantNos.size;
+
+  let withCommentCount = 0, withoutCommentCount = 0;
+  visitedPlantNos.forEach(pn=>{
+    const hasReal = list.some(v=> v.plant_no===pn && v.comments && v.comments.length>0);
+    if(hasReal) withCommentCount++; else withoutCommentCount++;
+  });
+  const notVisitedCount = Math.max(0, totalCount - visitedCount);
+  const visitedPct = totalCount ? (visitedCount/totalCount*100) : 0;
+
+  document.getElementById('v-kpi-total').textContent = totalCount;
+  document.getElementById('v-kpi-visited').textContent = visitedCount;
+  document.getElementById('v-kpi-visited-pct').textContent = visitedPct.toFixed(1)+'% ของทั้งหมด';
+  document.getElementById('v-kpi-with-comment').textContent = withCommentCount;
+  document.getElementById('v-kpi-no-comment').textContent = withoutCommentCount;
+  document.getElementById('v-kpi-not-visited').textContent = notVisitedCount;
 }
 
 [vDivision, vCompany, vPjk].forEach(el=>el.addEventListener('change', renderVisits));
