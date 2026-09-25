@@ -1369,7 +1369,10 @@ function updateDataStatusBar(){
   if(dataSource === 'auto-fetch'){
     bar.style.display = 'block';
     bar.className = 'data-status-bar status-live';
-    bar.innerHTML = `🟢 กำลังแสดงข้อมูลล่าสุดจากไฟล์ <b>${esc(EXCEL_SOURCE_URL)}</b> บนเซิร์ฟเวอร์ (โหลดอัตโนมัติทุกครั้งที่เปิดหน้า)`;
+    const lmText = dataLastModified
+      ? ' · ข้อมูลชุดนี้อัปเดตล่าสุดเมื่อ <b>' + dataLastModified.toLocaleDateString('th-TH', {day:'2-digit', month:'long', year:'numeric'}) + '</b>'
+      : '';
+    bar.innerHTML = `🟢 กำลังแสดงข้อมูลล่าสุดจากไฟล์ <b>${esc(EXCEL_SOURCE_URL)}</b> บนเซิร์ฟเวอร์ (โหลดอัตโนมัติทุกครั้งที่เปิดหน้า) · 🗓️ Update ข้อมูลทุกวันจันทร์${lmText}`;
     resetBtn.style.display = 'none';
   } else if(dataSource === 'manual-upload'){
     const meta = getUploadMeta();
@@ -3032,11 +3035,18 @@ document.getElementById('pdf-generate').addEventListener('click', async ()=>{
 const EXCEL_SOURCE_URL = 'DATA_Plantvisit.xlsx';
 let dataSource = 'default'; // 'default' | 'auto-fetch' | 'manual-upload'
 
+let dataLastModified = null;
+
 async function tryAutoFetchExcel(){
   if(typeof XLSX === 'undefined') return null;
   try{
     const res = await fetch(EXCEL_SOURCE_URL + '?t=' + Date.now(), {cache:'no-store'});
     if(!res.ok) return null;
+    const lm = res.headers.get('Last-Modified');
+    if(lm){
+      const d = new Date(lm);
+      if(!isNaN(d.getTime())) dataLastModified = d;
+    }
     const buf = await res.arrayBuffer();
     const wb = XLSX.read(new Uint8Array(buf), {type:'array', cellDates:true});
     const data = parseWorkbookToData(wb);
