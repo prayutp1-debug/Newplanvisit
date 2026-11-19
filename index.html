@@ -600,7 +600,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     padding:5px 10px; border-radius:20px; margin-left:6px;
   }
 
-  .filters-grid{display:grid; grid-template-columns:repeat(6,1fr); gap:12px;}
+  .filters-grid{display:grid; grid-template-columns:repeat(7,1fr); gap:12px;}
   .f-field label{display:block; font-size:11.5px; font-weight:600; color:var(--ink-soft); margin-bottom:6px;}
   select, input[type=text], input[type=search]{
     width:100%; padding:9px 11px; border-radius:9px; border:1px solid var(--line);
@@ -719,7 +719,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
   .legend-note{font-size:11px; color:var(--ink-soft); display:flex; align-items:center; gap:14px; margin-top:8px;}
   .legend-note i{display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:5px; vertical-align:-1px;}
 
-  .comment-toolbar{display:grid; grid-template-columns:1fr 1.4fr 1fr 1fr 1fr auto; gap:12px; align-items:end;}
+  .comment-toolbar{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; align-items:end;}
   .comment-count-row{display:flex; gap:10px; margin:14px 0 4px;}
   .pill{background:#f6f7fa; border:1px solid var(--line); border-radius:20px; padding:6px 13px; font-size:11.8px; font-weight:600; color:var(--ink-soft);}
   .pill b{color:var(--ink); font-weight:800;}
@@ -1128,6 +1128,10 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
           <select id="f-owner"><option value="">ทั้งหมด</option></select>
         </div>
         <div class="f-field">
+          <label>ทีมงาน FM (คอลัมน์ T)</label>
+          <select id="f-fm"><option value="">ทั้งหมด</option></select>
+        </div>
+        <div class="f-field">
           <label>ผจก.ผลิต CPAC (คอลัมน์ Q)</label>
           <select id="f-pjk"><option value="">ทั้งหมด</option></select>
         </div>
@@ -1241,6 +1245,10 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
           <label>บจก./หจก.</label>
           <select id="c-owner"><option value="">ทั้งหมด</option></select>
         </div>
+        <div class="f-field">
+          <label>ทีมงาน FM</label>
+          <select id="c-fm"><option value="">ทั้งหมด</option></select>
+        </div>
         <button class="btn-reset" id="c-reset">ล้างตัวกรอง</button>
       </div>
       <div class="comment-count-row">
@@ -1273,6 +1281,10 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         <div class="f-field">
           <label>บริษัท</label>
           <select id="v-company"><option value="">ทั้งหมด</option></select>
+        </div>
+        <div class="f-field">
+          <label>ทีมงาน FM</label>
+          <select id="v-fm"><option value="">ทั้งหมด</option></select>
         </div>
         <div class="f-field">
           <label>ผจก.ผลิต CPAC</label>
@@ -1623,14 +1635,15 @@ const fOwner = document.getElementById('f-owner');
 const fPjk = document.getElementById('f-pjk');
 const fGrade = document.getElementById('f-grade');
 const fType = document.getElementById('f-type');
-const S2_SELECTS = {division:fDivision, owner:fOwner, pjk:fPjk, grade:fGrade, type:fType};
+const fFm = document.getElementById('f-fm');
+const S2_SELECTS = {division:fDivision, owner:fOwner, fm:fFm, pjk:fPjk, grade:fGrade, type:fType};
 
 let sortKey = 'total', sortDir = 1;
 let donutChart, topicPctChart, topics2Chart;
 
 function readFilterState(){
   return {
-    division: fDivision.value, owner: fOwner.value, pjk: fPjk.value,
+    division: fDivision.value, owner: fOwner.value, fm: fFm.value, pjk: fPjk.value,
     grade: fGrade.value, type: fType.value,
   };
 }
@@ -1640,6 +1653,7 @@ function applyFiltersExcept(plants, excludeKey, fs){
   return plants.filter(p=>{
     if(excludeKey!=='division' && fs.division && p.division!==fs.division) return false;
     if(excludeKey!=='owner' && fs.owner && p.owner!==fs.owner) return false;
+    if(excludeKey!=='fm' && fs.fm && p.fm!==fs.fm) return false;
     if(excludeKey!=='pjk' && fs.pjk && p.pjk!==fs.pjk) return false;
     if(excludeKey!=='grade' && fs.grade && p.grade!==fs.grade) return false;
     if(excludeKey!=='type' && fs.type && p.type!==fs.type) return false;
@@ -2186,7 +2200,7 @@ function handleRoundChange(sourceEl){
   setupGradeOvSelect();
   fGradeOv.value = '';
   renderOverview();
-  [fDivision,fOwner,fPjk,fGrade,fType].forEach(el=>el.value='');
+  [fDivision,fOwner,fFm,fPjk,fGrade,fType].forEach(el=>el.value='');
   renderSection2();
   if(typeof renderComments === 'function') renderComments();
   if(typeof renderVisits === 'function') renderVisits();
@@ -2196,9 +2210,9 @@ if(fRoundDetail) fRoundDetail.addEventListener('change', ()=>handleRoundChange(f
 if(fRoundComment) fRoundComment.addEventListener('change', ()=>handleRoundChange(fRoundComment));
 if(fRoundVisits) fRoundVisits.addEventListener('change', ()=>handleRoundChange(fRoundVisits));
 fGradeOv.addEventListener('change', renderOverview);
-[fDivision,fOwner,fPjk,fGrade,fType].forEach(el=>el.addEventListener('change', renderSection2));
+[fDivision,fOwner,fFm,fPjk,fGrade,fType].forEach(el=>el.addEventListener('change', renderSection2));
 document.getElementById('dash-reset').addEventListener('click', ()=>{
-  [fDivision,fOwner,fPjk,fGrade,fType].forEach(el=>el.value='');
+  [fDivision,fOwner,fFm,fPjk,fGrade,fType].forEach(el=>el.value='');
   renderSection2();
 });
 
@@ -2209,21 +2223,23 @@ const cSearch = document.getElementById('c-search');
 const cDivision = document.getElementById('c-division');
 const cPjk = document.getElementById('c-pjk');
 const cOwner = document.getElementById('c-owner');
+const cFm = document.getElementById('c-fm');
 
 function cleanDiv(v){ if(!v || v==='#N/A') return null; return String(v).trim(); }
 
-const C_SELECTS = {division:cDivision, pjk:cPjk, owner:cOwner};
+const C_SELECTS = {division:cDivision, pjk:cPjk, owner:cOwner, fm:cFm};
 
 function commentMatchExcept(c, excludeKey, fs){
   if(fs.round && c.round && c.round !== fs.round) return false;
   if(excludeKey!=='division' && fs.division && cleanDiv(c.division)!==fs.division) return false;
   if(excludeKey!=='pjk' && fs.pjk && c.pjk!==fs.pjk) return false;
   if(excludeKey!=='owner' && fs.owner && c.owner!==fs.owner) return false;
+  if(excludeKey!=='fm' && fs.fm && c.fm!==fs.fm) return false;
   return true;
 }
 
 function readCommentFilterState(){
-  return { division:cDivision.value, pjk:cPjk.value, owner:cOwner.value, round:fRound.value };
+  return { division:cDivision.value, pjk:cPjk.value, owner:cOwner.value, fm:cFm.value, round:fRound.value };
 }
 
 function updateCommentCascadingOptions(){
@@ -2245,13 +2261,14 @@ function setupCommentFilters(){
 function renderComments(){
   updateCommentCascadingOptions();
   const q = cSearch.value.trim().toLowerCase();
-  const dv = cDivision.value, pj = cPjk.value, ow = cOwner.value;
+  const dv = cDivision.value, pj = cPjk.value, ow = cOwner.value, fmv = cFm.value;
   const activeRound = fRound.value;
   let list = DATA.comments.filter(c=>{
     if(activeRound && c.round !== activeRound) return false;
     if(dv && cleanDiv(c.division) !== dv) return false;
     if(pj && c.pjk !== pj) return false;
     if(ow && c.owner !== ow) return false;
+    if(fmv && c.fm !== fmv) return false;
     if(q){
       const hay = `${c.plant_name} ${c.owner} ${c.remark} ${c.maintopic}`.toLowerCase();
       if(!hay.includes(q)) return false;
@@ -2314,10 +2331,10 @@ function renderComments(){
   }).join('');
 }
 
-[cDivision,cPjk,cOwner].forEach(el=>el.addEventListener('change', renderComments));
+[cDivision,cPjk,cOwner,cFm].forEach(el=>el.addEventListener('change', renderComments));
 cSearch.addEventListener('input', renderComments);
 document.getElementById('c-reset').addEventListener('click', ()=>{
-  cSearch.value=''; cDivision.value=''; cPjk.value=''; cOwner.value='';
+  cSearch.value=''; cDivision.value=''; cPjk.value=''; cOwner.value=''; cFm.value='';
   renderComments();
 });
 
@@ -2333,6 +2350,7 @@ const vSearch = document.getElementById('v-search');
 const vDivision = document.getElementById('v-division');
 const vCompany = document.getElementById('v-company');
 const vPjk = document.getElementById('v-pjk');
+const vFm = document.getElementById('v-fm');
 
 /* Cascading: each dropdown's options respect the round plus the OTHER
    active filters, so you can never pick a combination with zero results. */
@@ -2344,6 +2362,7 @@ function setupVisitsFilters(){
   const matchExcept = (v, exclude)=>{
     if(exclude!=='division' && vDivision.value && cleanDiv(v.division)!==vDivision.value) return false;
     if(exclude!=='company' && vCompany.value && v.company!==vCompany.value) return false;
+    if(exclude!=='fm' && vFm.value && v.fm!==vFm.value) return false;
     if(exclude!=='pjk' && vPjk.value && v.pjk!==vPjk.value) return false;
     return true;
   };
@@ -2355,6 +2374,10 @@ function setupVisitsFilters(){
   const curCo = vCompany.value;
   fillSelect(vCompany, base.filter(v=>matchExcept(v,'company')).map(v=>v.company));
   if(Array.from(vCompany.options).some(o=>o.value===curCo)) vCompany.value = curCo; else vCompany.value = '';
+
+  const curFm = vFm.value;
+  fillSelect(vFm, base.filter(v=>matchExcept(v,'fm')).map(v=>v.fm));
+  if(Array.from(vFm.options).some(o=>o.value===curFm)) vFm.value = curFm; else vFm.value = '';
 
   const curPjk = vPjk.value;
   fillSelect(vPjk, base.filter(v=>matchExcept(v,'pjk')).map(v=>v.pjk));
@@ -2369,10 +2392,12 @@ function renderVisits(){
   const dv = vDivision.value;
   const co = vCompany.value;
   const pj = vPjk.value;
+  const fmv = vFm.value;
   let list = visits.filter(v=>{
     if(activeRound && v.round !== activeRound) return false;
     if(dv && cleanDiv(v.division) !== dv) return false;
     if(co && v.company !== co) return false;
+    if(fmv && v.fm !== fmv) return false;
     if(pj && v.pjk !== pj) return false;
     if(q){
       const hay = `${v.plant_name} ${v.company} ${v.user_name}`.toLowerCase();
@@ -2390,7 +2415,7 @@ function renderVisits(){
   });
 
   document.getElementById('v-count').textContent = list.length;
-  renderVisitsSummary(list, dv, co, pj);
+  renderVisitsSummary(list, dv, co, pj, fmv);
 
   const host = document.getElementById('visits-list');
   if(!list.length){
@@ -2420,13 +2445,14 @@ function renderVisits(){
   `).join('');
 }
 
-function renderVisitsSummary(list, dv, co, pj){
+function renderVisitsSummary(list, dv, co, pj, fmv){
   // "total factories in scope" = ACT master plants matching the same
   // round/division/company/pjk filters currently applied to the visit list.
   let totalPlants = plantsInRound();
   if(dv) totalPlants = totalPlants.filter(p=>p.division===dv);
   if(co) totalPlants = totalPlants.filter(p=>p.owner===co);
   if(pj) totalPlants = totalPlants.filter(p=>p.pjk===pj);
+  if(fmv) totalPlants = totalPlants.filter(p=>p.fm===fmv);
   const totalCount = totalPlants.length;
 
   const visitedPlantNos = new Set(list.map(v=>v.plant_no));
@@ -2448,10 +2474,10 @@ function renderVisitsSummary(list, dv, co, pj){
   document.getElementById('v-kpi-not-visited').textContent = notVisitedCount;
 }
 
-[vDivision, vCompany, vPjk].forEach(el=>el.addEventListener('change', renderVisits));
+[vDivision, vCompany, vFm, vPjk].forEach(el=>el.addEventListener('change', renderVisits));
 vSearch.addEventListener('input', renderVisits);
 document.getElementById('v-reset').addEventListener('click', ()=>{
-  vSearch.value=''; vDivision.value=''; vCompany.value=''; vPjk.value='';
+  vSearch.value=''; vDivision.value=''; vCompany.value=''; vFm.value=''; vPjk.value='';
   renderVisits();
 });
 
@@ -2510,6 +2536,8 @@ function parseWorkbookToData(wb){
   TOPIC_LABELS.forEach((t,i)=>{ MAXV[t]=maxRow[6+i]; STDV[t]=stdRow[6+i]; });
 
   const plants = [];
+  let fmIdx = (rows[3]||[]).findIndex(c=>c!=null && String(c).replace(/\s+/g,'')==='ทีมFM');
+  if(fmIdx<0) fmIdx = 19;
   for(let i=4;i<rows.length;i++){
     const r = rows[i];
     if(!r || !r[2] || !r[17]) continue;
@@ -2523,11 +2551,15 @@ function parseWorkbookToData(wb){
       scores, total: Math.round(total*10)/10,
       visited: total > 0,
       pjk: r[16], round: r[17],
+      fm: (r[fmIdx]!=null && String(r[fmIdx]).trim() && String(r[fmIdx]).trim()!=='#N/A') ? String(r[fmIdx]).trim().replace(/\s+/g,' ') : null,
     });
   }
   if(!plants.length) throw new Error(`อ่านชีต "${actSheetName}" ได้ แต่ไม่พบแถวข้อมูลโรงงานที่ถูกต้อง (ตรวจสอบว่ายังคงโครงสร้างคอลัมน์ A-R เดิม)`);
   const rounds = Array.from(new Set(plants.map(p=>p.round).filter(Boolean))).sort();
   const masterByFc = {}; plants.forEach(p=>masterByFc[p.fcplno]=p);
+  const fmByFcRound = {}, fmByFc = {};
+  plants.forEach(p=>{ if(p.fm){ fmByFcRound[p.fcplno+'|'+p.round]=p.fm; fmByFc[p.fcplno]=p.fm; } });
+  const fmFor = (pn, round)=> fmByFcRound[pn+'|'+round] || fmByFc[pn] || null;
 
   // NOTE: a plant can appear once per round in the ACT sheet (e.g. 4 rows for
   // 4 rounds). masterByFc above only keeps the LAST one seen per plant code,
@@ -2668,7 +2700,7 @@ function parseWorkbookToData(wb){
       const finalRound = (keyRound==='null' ? null : keyRound);
       comments.push({
         plant_no: pn, plant_name: meta.plant_name, owner: meta.owner,
-        division: meta.division, pjk: meta.pjk, round: finalRound,
+        division: meta.division, pjk: meta.pjk, round: finalRound, fm: fmFor(pn, finalRound),
         maintopic, remark: (best.remark || 'ไม่มี Comment'), user_name: best.user_name, date: finalRound,
       });
     });
@@ -2702,7 +2734,7 @@ function parseWorkbookToData(wb){
           pjk: (m ? m.pjk : r[cPjk]) || '-',
           user_name: r[cUserName] || '-',
           date: dateStr, dateDisplay: dateDisplay || '-',
-          comments: commentBoxes, round,
+          comments: commentBoxes, round, fm: fmFor(pn, round),
         });
       }
     }
